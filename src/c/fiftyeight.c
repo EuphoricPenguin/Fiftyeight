@@ -5,10 +5,12 @@ static Layer *s_canvas_layer;
 static GBitmap *s_priority_sprites;
 static GBitmap *s_lesser_sprites;
 static GBitmap *s_least_sprites;
+static GBitmap *s_subpriority_sprites;
 static GBitmap *s_am_pm_indicator;
 
 // Sprite sheet dimensions
 #define PRIORITY_WIDTH 40
+#define SUBPRIORITY_WIDTH 30
 #define LESSER_WIDTH 20
 #define LEAST_WIDTH 13
 #define SPRITE_HEIGHT 18
@@ -19,7 +21,8 @@ static GBitmap *s_am_pm_indicator;
 typedef enum {
   DIGIT_PRIORITY,
   DIGIT_LESSER,
-  DIGIT_LEAST
+  DIGIT_LEAST,
+  DIGIT_SUBPRIORITY
 } DigitType;
 
 // Function to draw a digit with specified type
@@ -40,6 +43,10 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
     case DIGIT_LEAST:
       sprite_sheet = s_least_sprites;
       sprite_width = LEAST_WIDTH;
+      break;
+    case DIGIT_SUBPRIORITY:
+      sprite_sheet = s_subpriority_sprites;
+      sprite_width = SUBPRIORITY_WIDTH;
       break;
   }
   
@@ -139,40 +146,33 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   int minute_tens = minute / 10;
   int minute_ones = minute % 10;
   
-  // Determine hour digit types based on your logic
+  // Determine hour digit types based on refined logic
   DigitType hour_tens_type = DIGIT_PRIORITY; // Initialize with default
   DigitType hour_ones_type = DIGIT_PRIORITY; // Initialize with default
   
   if (hour_tens == 0) {
-    // Single digit hour (1-9) - use priority digit
+    // Single digit hour (1-9) - use priority digit (wide)
     hour_ones_type = DIGIT_PRIORITY;
   } else {
     // Two digit hour (10, 11, 12) - use least for 1, priority for second digit
     hour_tens_type = DIGIT_LEAST;
     hour_ones_type = DIGIT_PRIORITY;
+    
+    // Special case for 11: use two subpriority digits
+    if (hour_tens == 1 && hour_ones == 1) {
+      hour_tens_type = DIGIT_SUBPRIORITY;
+      hour_ones_type = DIGIT_SUBPRIORITY;
+    }
   }
   
-  // Determine minute digit types based on your logic
-  DigitType minute_tens_type = DIGIT_PRIORITY; // Initialize with default
-  DigitType minute_ones_type = DIGIT_PRIORITY; // Initialize with default
+  // Determine minute digit types based on refined logic
+  DigitType minute_tens_type = DIGIT_SUBPRIORITY; // Initialize with subpriority by default
+  DigitType minute_ones_type = DIGIT_SUBPRIORITY; // Initialize with subpriority by default
   
   if (minute_tens == 0) {
     // Single digit minute (00-09) - first digit is least, second digit is priority
     minute_tens_type = DIGIT_LEAST;  // Zero uses least
     minute_ones_type = DIGIT_PRIORITY;  // Single digit uses priority
-  } else if (minute_ones == 0) {
-    // If time ends in zero (20, 30, etc.), first digit is priority, second digit is least
-    // This overrides all other conditions
-    minute_tens_type = DIGIT_PRIORITY;
-    minute_ones_type = DIGIT_LEAST;
-  } else if (hour_tens == 0) {
-    // If hour is single priority digit, first minute digit is lesser, second digit is priority
-    minute_tens_type = DIGIT_LESSER;
-    minute_ones_type = DIGIT_PRIORITY;
-  } else {
-    // Two digit minute (10-59) - first digit is priority, second digit is lesser
-    minute_tens_type = DIGIT_PRIORITY;
-    minute_ones_type = DIGIT_LESSER;
   }
   
   // Calculate total width of time display with spacing
@@ -183,13 +183,15 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // Add hour tens width if present
   if (hour_tens > 0) {
     total_width += (hour_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-                   (hour_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+                   (hour_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+                   (hour_tens_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
     total_width += digit_spacing; // Space after hour tens
   }
 
   // Add hour ones width
   total_width += (hour_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-                 (hour_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+                 (hour_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+                 (hour_ones_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
   total_width += digit_spacing; // Space after hour ones
 
   // Add colon width
@@ -198,12 +200,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
 
   // Add minute tens width
   total_width += (minute_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-                 (minute_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+                 (minute_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+                 (minute_tens_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
   total_width += digit_spacing; // Space after minute tens
 
   // Add minute ones width
   total_width += (minute_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-                 (minute_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+                 (minute_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+                 (minute_ones_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
   
   GRect bounds = layer_get_bounds(layer);
   
@@ -216,14 +220,16 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   if (hour_tens > 0) {
     draw_digit(ctx, hour_tens, hour_tens_type, current_x, y_pos);
     current_x += (hour_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-                 (hour_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+                 (hour_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+                 (hour_tens_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
     current_x += digit_spacing; // Space after hour tens
   }
   
   // Draw hour ones digit
   draw_digit(ctx, hour_ones, hour_ones_type, current_x, y_pos);
   current_x += (hour_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-               (hour_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+               (hour_ones_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+               (hour_ones_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
   current_x += digit_spacing; // Space after hour ones
   
   // Draw colon between hours and minutes
@@ -236,7 +242,8 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // Draw minute tens digit
   draw_digit(ctx, minute_tens, minute_tens_type, current_x, y_pos);
   current_x += (minute_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : 
-               (minute_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : LEAST_WIDTH;
+               (minute_tens_type == DIGIT_LESSER) ? LESSER_WIDTH : 
+               (minute_tens_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
   current_x += digit_spacing; // Space after minute tens
   
   // Draw minute ones digit
@@ -282,10 +289,11 @@ static void main_window_load(Window *window)
   layer_set_update_proc(s_canvas_layer, canvas_update_proc);
   layer_add_child(window_layer, s_canvas_layer);
   
-  // Load all three sprite sheets with error checking
+  // Load all four sprite sheets with error checking
   s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
   s_lesser_sprites = gbitmap_create_with_resource(RESOURCE_ID_LESSER_DIGIT);
   s_least_sprites = gbitmap_create_with_resource(RESOURCE_ID_LEAST_DIGIT);
+  s_subpriority_sprites = gbitmap_create_with_resource(RESOURCE_ID_SUBPRIORITY_DIGIT);
   s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
   
   // Check if resources loaded successfully
@@ -331,6 +339,7 @@ static void main_window_unload(Window *window)
   gbitmap_destroy(s_priority_sprites);
   gbitmap_destroy(s_lesser_sprites);
   gbitmap_destroy(s_least_sprites);
+  gbitmap_destroy(s_subpriority_sprites);
   gbitmap_destroy(s_am_pm_indicator);
 }
 
