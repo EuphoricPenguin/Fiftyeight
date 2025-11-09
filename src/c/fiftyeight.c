@@ -1,9 +1,4 @@
 #include <pebble.h>
-#include <math.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 static Window *s_main_window;
 static Layer *s_canvas_layer;
@@ -29,8 +24,8 @@ typedef enum {
 
 // Function to draw a digit with specified type
 static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
-  GBitmap *sprite_sheet = s_priority_sprites; // Default to priority
-  int sprite_width = PRIORITY_WIDTH; // Default to priority width
+  GBitmap *sprite_sheet = NULL;
+  int sprite_width = 0;
   
   // Select the appropriate sprite sheet and width
   switch (type) {
@@ -48,6 +43,19 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
       break;
   }
   
+  // Validate sprite sheet exists
+  if (!sprite_sheet) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Sprite sheet is NULL for digit type: %d", type);
+    return;
+  }
+  
+  // Validate sprite sheet bounds
+  GSize sprite_sheet_size = gbitmap_get_bounds(sprite_sheet).size;
+  if (sprite_sheet_size.w <= 0 || sprite_sheet_size.h <= 0) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid sprite sheet dimensions: %dx%d", sprite_sheet_size.w, sprite_sheet_size.h);
+    return;
+  }
+  
   // Calculate sprite position in the spritesheet
   // Handle digit 0 specially (it's in row 3, column 0)
   int sprite_row, sprite_col;
@@ -57,6 +65,16 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
   } else {
     sprite_row = (digit - 1) / SPRITES_PER_ROW;
     sprite_col = (digit - 1) % SPRITES_PER_ROW;
+  }
+  
+  // Validate sprite position is within bounds
+  int max_col = sprite_sheet_size.w / sprite_width;
+  int max_row = sprite_sheet_size.h / SPRITE_HEIGHT;
+  
+  if (sprite_col >= max_col || sprite_row >= max_row) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Sprite position out of bounds: digit=%d, row=%d/%d, col=%d/%d", 
+           digit, sprite_row, max_row, sprite_col, max_col);
+    return;
   }
   
   // Calculate source rectangle in the spritesheet
@@ -75,6 +93,10 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
   
   // Create a sub-bitmap for the specific sprite
   GBitmap *sprite_bitmap = gbitmap_create_as_sub_bitmap(sprite_sheet, source_rect);
+  if (!sprite_bitmap) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to create sub-bitmap for digit %d", digit);
+    return;
+  }
   
   // Draw the sprite
   graphics_draw_bitmap_in_rect(ctx, sprite_bitmap, dest_rect);
@@ -84,8 +106,10 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y) {
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  // Refresh the display when time changes
-  layer_mark_dirty(s_canvas_layer);
+  // Only refresh the display when minutes change to reduce CPU usage
+  if (units_changed & MINUTE_UNIT) {
+    layer_mark_dirty(s_canvas_layer);
+  }
 }
 
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
@@ -224,63 +248,28 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   int padding_top = 10; // Top padding
   int padding_left = 10; // Left padding
   
-  // Calculate source rectangle for AM/PM indicator
-  // Row 0: P (PM), Row 1: A (AM)
-  int am_pm_row = is_pm ? 0 : 1;
-  GRect am_pm_source_rect = GRect(0, am_pm_row * am_pm_height, am_pm_width, am_pm_height);
-  
-  // Calculate destination position in top left corner with padding
-  GRect am_pm_dest_rect = GRect(padding_left, padding_top, am_pm_width, am_pm_height);
-  
-  // Set compositing mode for transparency
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  
-  // Create a sub-bitmap for the AM/PM indicator
-  GBitmap *am_pm_bitmap = gbitmap_create_as_sub_bitmap(s_am_pm_indicator, am_pm_source_rect);
-  
-  // Draw the AM/PM indicator
-  graphics_draw_bitmap_in_rect(ctx, am_pm_bitmap, am_pm_dest_rect);
-  
-  // Clean up the sub-bitmap
-  gbitmap_destroy(am_pm_bitmap);
-  
-  // Draw analog watch visualization around digital time
-  int circle_radius = (int)(total_width * 0.75 / 2); // 75% of digital time width
-  int center_x = start_x + total_width / 2;
-  int center_y = y_pos + SPRITE_HEIGHT / 2;
-  
-  // Get seconds for second hand
-  int second = tick_time->tm_sec;
-  
-  // Calculate angles for each hand (in radians)
-  // Hour hand: 12 hours = 360 degrees, plus fraction of current hour
-  float hour_angle = (float)((hour % 12) * 30 + minute * 0.5) * (M_PI / 180.0);
-  // Minute hand: 60 minutes = 360 degrees
-  float minute_angle = (float)(minute * 6) * (M_PI / 180.0);
-  // Second hand: 60 seconds = 360 degrees
-  float second_angle = (float)(second * 6) * (M_PI / 180.0);
-  
-  // Calculate positions for each hand dot on the circle
-  int hour_x = center_x + (int)(circle_radius * sin(hour_angle));
-  int hour_y = center_y - (int)(circle_radius * cos(hour_angle));
-  
-  int minute_x = center_x + (int)(circle_radius * sin(minute_angle));
-  int minute_y = center_y - (int)(circle_radius * cos(minute_angle));
-  
-  int second_x = center_x + (int)(circle_radius * sin(second_angle));
-  int second_y = center_y - (int)(circle_radius * cos(second_angle));
-  
-  // Draw 5px dots for each hand
-  graphics_context_set_fill_color(ctx, GColorBlack);
-  
-  // Hour hand dot
-  graphics_fill_circle(ctx, GPoint(hour_x, hour_y), 2);
-  
-  // Minute hand dot
-  graphics_fill_circle(ctx, GPoint(minute_x, minute_y), 2);
-  
-  // Second hand dot (slightly smaller for visual distinction)
-  graphics_fill_circle(ctx, GPoint(second_x, second_y), 1);
+  // Validate AM/PM indicator exists
+  if (s_am_pm_indicator) {
+    // Calculate source rectangle for AM/PM indicator
+    // Row 0: P (PM), Row 1: A (AM)
+    int am_pm_row = is_pm ? 0 : 1;
+    GRect am_pm_source_rect = GRect(0, am_pm_row * am_pm_height, am_pm_width, am_pm_height);
+    
+    // Calculate destination position in top left corner with padding
+    GRect am_pm_dest_rect = GRect(padding_left, padding_top, am_pm_width, am_pm_height);
+    
+    // Set compositing mode for transparency
+    graphics_context_set_compositing_mode(ctx, GCompOpSet);
+    
+    // Create a sub-bitmap for the AM/PM indicator
+    GBitmap *am_pm_bitmap = gbitmap_create_as_sub_bitmap(s_am_pm_indicator, am_pm_source_rect);
+    
+    // Draw the AM/PM indicator
+    graphics_draw_bitmap_in_rect(ctx, am_pm_bitmap, am_pm_dest_rect);
+    
+    // Clean up the sub-bitmap
+    gbitmap_destroy(am_pm_bitmap);
+  }
 }
 
 static void main_window_load(Window *window)
@@ -288,22 +277,51 @@ static void main_window_load(Window *window)
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
   
-  // Load all three sprite sheets
+  // Create canvas layer for drawing first
+  s_canvas_layer = layer_create(bounds);
+  layer_set_update_proc(s_canvas_layer, canvas_update_proc);
+  layer_add_child(window_layer, s_canvas_layer);
+  
+  // Load all three sprite sheets with error checking
   s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
   s_lesser_sprites = gbitmap_create_with_resource(RESOURCE_ID_LESSER_DIGIT);
   s_least_sprites = gbitmap_create_with_resource(RESOURCE_ID_LEAST_DIGIT);
   s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
   
-  // Create canvas layer for drawing
-  s_canvas_layer = layer_create(bounds);
-  layer_set_update_proc(s_canvas_layer, canvas_update_proc);
-  layer_add_child(window_layer, s_canvas_layer);
+  // Check if resources loaded successfully
+  if (!s_priority_sprites) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to load priority digit sprite sheet");
+  } else {
+    GSize size = gbitmap_get_bounds(s_priority_sprites).size;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Priority sprite sheet loaded: %dx%d", size.w, size.h);
+  }
+  
+  if (!s_lesser_sprites) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to load lesser digit sprite sheet");
+  } else {
+    GSize size = gbitmap_get_bounds(s_lesser_sprites).size;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Lesser sprite sheet loaded: %dx%d", size.w, size.h);
+  }
+  
+  if (!s_least_sprites) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to load least digit sprite sheet");
+  } else {
+    GSize size = gbitmap_get_bounds(s_least_sprites).size;
+    APP_LOG(APP_LOG_LEVEL_INFO, "Least sprite sheet loaded: %dx%d", size.w, size.h);
+  }
+  
+  if (!s_am_pm_indicator) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to load AM/PM indicator sprite sheet");
+  } else {
+    GSize size = gbitmap_get_bounds(s_am_pm_indicator).size;
+    APP_LOG(APP_LOG_LEVEL_INFO, "AM/PM indicator loaded: %dx%d", size.w, size.h);
+  }
   
   // Force initial redraw
   layer_mark_dirty(s_canvas_layer);
   
-  // Subscribe to tick timer service for updates
-  tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
+  // Subscribe to tick timer service for updates - use MINUTE_UNIT to reduce CPU usage
+  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
 }
 
 static void main_window_unload(Window *window)
