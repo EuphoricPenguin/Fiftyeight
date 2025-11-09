@@ -8,6 +8,47 @@ static GBitmap *s_least_sprites;
 static GBitmap *s_subpriority_sprites;
 static GBitmap *s_am_pm_indicator;
 
+// Hardcoded settings (config page removed)
+static bool s_dark_mode = false;
+static bool s_show_am_pm = true;
+static int s_time_format = 12;
+
+// Function to invert bitmap palette for dark mode
+static void invert_bitmap_palette(GBitmap *bitmap) {
+  if (!bitmap) return;
+  
+  GColor *palette = gbitmap_get_palette(bitmap);
+  if (!palette) return;
+  
+  // Get the bitmap format to determine palette size
+  GBitmapFormat format = gbitmap_get_format(bitmap);
+  int palette_size = 0;
+  
+  switch (format) {
+    case GBitmapFormat1BitPalette:
+      palette_size = 2;
+      break;
+    case GBitmapFormat2BitPalette:
+      palette_size = 4;
+      break;
+    case GBitmapFormat4BitPalette:
+      palette_size = 16;
+      break;
+    default:
+      // Not a palette-based format, can't invert
+      return;
+  }
+  
+  // Invert the palette colors
+  for (int i = 0; i < palette_size; i++) {
+    if (gcolor_equal(palette[i], GColorBlack)) {
+      palette[i] = GColorWhite;
+    } else if (gcolor_equal(palette[i], GColorWhite)) {
+      palette[i] = GColorBlack;
+    }
+  }
+}
+
 // Sprite sheet dimensions
 #define PRIORITY_WIDTH 40
 #define SUBPRIORITY_WIDTH 30
@@ -119,9 +160,14 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   }
 }
 
+
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
-  // Set background to white
-  graphics_context_set_fill_color(ctx, GColorWhite);
+  // Set background color based on dark mode setting
+  if (s_dark_mode) {
+    graphics_context_set_fill_color(ctx, GColorBlack);
+  } else {
+    graphics_context_set_fill_color(ctx, GColorWhite);
+  }
   graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
   
   // Get the current time
@@ -131,11 +177,13 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   int minute = tick_time->tm_min;
   bool is_pm = (hour >= 12); // Determine AM/PM
   
-  // Convert 24-hour to 12-hour format
-  if (hour > 12) {
-    hour -= 12;
-  } else if (hour == 0) {
-    hour = 12;
+  // Convert hour based on time format setting
+  if (s_time_format == 12) {
+    if (hour > 12) {
+      hour -= 12;
+    } else if (hour == 0) {
+      hour = 12;
+    }
   }
   
   // Get hour digits
@@ -169,10 +217,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   DigitType minute_tens_type = DIGIT_SUBPRIORITY; // Initialize with subpriority by default
   DigitType minute_ones_type = DIGIT_SUBPRIORITY; // Initialize with subpriority by default
   
-  if (minute_tens == 0) {
-    // Single digit minute (00-09) - first digit is least, second digit is priority
-    minute_tens_type = DIGIT_LEAST;  // Zero uses least
-    minute_ones_type = DIGIT_PRIORITY;  // Single digit uses priority
+  if (minute_tens == 0 && minute_ones > 0) {
+    // Single digit minute (01-09) - first digit is lesser, second digit is subpriority
+    // Exception: 00 remains as subpriority for both digits
+    minute_tens_type = DIGIT_LESSER;  // Zero uses lesser
+    minute_ones_type = DIGIT_SUBPRIORITY;  // Single digit uses subpriority
   }
   
   // Calculate total width of time display with spacing
@@ -233,7 +282,11 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   current_x += digit_spacing; // Space after hour ones
   
   // Draw colon between hours and minutes
-  graphics_context_set_fill_color(ctx, GColorBlack);
+  if (s_dark_mode) {
+    graphics_context_set_fill_color(ctx, GColorWhite);
+  } else {
+    graphics_context_set_fill_color(ctx, GColorBlack);
+  }
   graphics_fill_rect(ctx, GRect(current_x + 2, y_pos + 4, 4, 4), 0, GCornerNone);
   graphics_fill_rect(ctx, GRect(current_x + 2, y_pos + 10, 4, 4), 0, GCornerNone);
   current_x += colon_width;
@@ -249,33 +302,35 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   // Draw minute ones digit
   draw_digit(ctx, minute_ones, minute_ones_type, current_x, y_pos);
   
-  // Draw AM/PM indicator in top left corner with padding
-  int am_pm_width = 20;
-  int am_pm_height = 14;
-  int padding_top = 10; // Top padding
-  int padding_left = 10; // Left padding
-  
-  // Validate AM/PM indicator exists
-  if (s_am_pm_indicator) {
-    // Calculate source rectangle for AM/PM indicator
-    // Row 0: P (PM), Row 1: A (AM)
-    int am_pm_row = is_pm ? 0 : 1;
-    GRect am_pm_source_rect = GRect(0, am_pm_row * am_pm_height, am_pm_width, am_pm_height);
+  // Draw AM/PM indicator in top left corner with padding (only if enabled and 12-hour format)
+  if (s_show_am_pm && s_time_format == 12) {
+    int am_pm_width = 20;
+    int am_pm_height = 14;
+    int padding_top = 10; // Top padding
+    int padding_left = 10; // Left padding
     
-    // Calculate destination position in top left corner with padding
-    GRect am_pm_dest_rect = GRect(padding_left, padding_top, am_pm_width, am_pm_height);
-    
-    // Set compositing mode for transparency
-    graphics_context_set_compositing_mode(ctx, GCompOpSet);
-    
-    // Create a sub-bitmap for the AM/PM indicator
-    GBitmap *am_pm_bitmap = gbitmap_create_as_sub_bitmap(s_am_pm_indicator, am_pm_source_rect);
-    
-    // Draw the AM/PM indicator
-    graphics_draw_bitmap_in_rect(ctx, am_pm_bitmap, am_pm_dest_rect);
-    
-    // Clean up the sub-bitmap
-    gbitmap_destroy(am_pm_bitmap);
+    // Validate AM/PM indicator exists
+    if (s_am_pm_indicator) {
+      // Calculate source rectangle for AM/PM indicator
+      // Row 0: P (PM), Row 1: A (AM)
+      int am_pm_row = is_pm ? 0 : 1;
+      GRect am_pm_source_rect = GRect(0, am_pm_row * am_pm_height, am_pm_width, am_pm_height);
+      
+      // Calculate destination position in top left corner with padding
+      GRect am_pm_dest_rect = GRect(padding_left, padding_top, am_pm_width, am_pm_height);
+      
+      // Set compositing mode for transparency
+      graphics_context_set_compositing_mode(ctx, GCompOpSet);
+      
+      // Create a sub-bitmap for the AM/PM indicator
+      GBitmap *am_pm_bitmap = gbitmap_create_as_sub_bitmap(s_am_pm_indicator, am_pm_source_rect);
+      
+      // Draw the AM/PM indicator
+      graphics_draw_bitmap_in_rect(ctx, am_pm_bitmap, am_pm_dest_rect);
+      
+      // Clean up the sub-bitmap
+      gbitmap_destroy(am_pm_bitmap);
+    }
   }
 }
 
@@ -323,6 +378,15 @@ static void main_window_load(Window *window)
   } else {
     GSize size = gbitmap_get_bounds(s_am_pm_indicator).size;
     APP_LOG(APP_LOG_LEVEL_INFO, "AM/PM indicator loaded: %dx%d", size.w, size.h);
+  }
+  
+  // Invert palette colors for dark mode
+  if (s_dark_mode) {
+    invert_bitmap_palette(s_priority_sprites);
+    invert_bitmap_palette(s_lesser_sprites);
+    invert_bitmap_palette(s_least_sprites);
+    invert_bitmap_palette(s_subpriority_sprites);
+    invert_bitmap_palette(s_am_pm_indicator);
   }
   
   // Force initial redraw

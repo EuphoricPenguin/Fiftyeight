@@ -9,12 +9,11 @@
     "fiftyeight"
   ],
   "private": true,
-  "dependencies": {},
   "pebble": {
     "displayName": "fiftyeight",
     "uuid": "eef69cfc-f0b2-44fd-b99f-576d56588ab4",
     "sdkVersion": "3",
-    "enableMultiJS": true,
+    "enableMultiJS": false,
     "targetPlatforms": [
       "aplite",
       "diorite",
@@ -23,6 +22,8 @@
     "watchapp": {
       "watchface": true
     },
+    "capabilities": [],
+    "messageKeys": [],
     "resources": {
       "media": [
         {

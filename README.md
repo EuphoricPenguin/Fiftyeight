@@ -1,10 +1,9 @@
-# Fiftyeight
-An attempt at bridging the gap between minimalism and practicality.
+# fiftyeight
+A watchface for Pebble.
 
-Here's my initial sketching:
+<img src="./add/fiftyeight.png" />
 
-<img width="1515" height="917" alt="image" src="https://github.com/user-attachments/assets/b274b8df-6e1d-4ac5-8fb2-cc63cf100d7f" />
-
-This is the current version:
-
-<img width="144" height="171" alt="image" src="https://github.com/user-attachments/assets/38109309-3a8a-4967-b3e0-fc06f530e676" />
+Fiftyeight tells the time. It has won no awards for design, not is it stunning or premium.
+What Fiftyeight does do is reimagine the WV-58 with dynamic glyphs
+that change in width to emphasize the hour, an analog time constellation that updates each second,
+and a compact representation of the week ahead.
