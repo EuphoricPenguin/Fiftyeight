@@ -18,4 +18,4 @@ Fiftyeight tells the time. It has won no awards for design, but it does reimagin
 
 <br/>
 
-Developed with the help of Cline via DeepSeek.
+Developed with the help of Cline via DeepSeek. Graphics, sprites, design, and architectural decisions by EuphoricPenguin.
