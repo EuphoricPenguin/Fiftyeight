@@ -4,10 +4,6 @@ module.exports = [
     "defaultValue": "fiftyeight Configuration"
   },
   {
-    "type": "text",
-    "defaultValue": "Customize your watchface appearance and behavior."
-  },
-  {
     "type": "section",
     "items": [
       {
@@ -26,7 +22,7 @@ module.exports = [
         "messageKey": "ShowAmPm",
         "label": "Show AM/PM Indicator",
         "defaultValue": false,
-        "description": "Display AM/PM indicator in top left corner"
+        "description": "Display AM/PM indicator in top left corner instead of the month date"
       },
       {
         "type": "toggle",
@@ -40,7 +36,7 @@ module.exports = [
         "messageKey": "UseTwoLetterDay",
         "label": "Two-Letter Day Abbreviations",
         "defaultValue": false,
-        "description": "Use 2-letter day abbreviations (SU, MO, etc.) instead of 3-letter"
+        "description": "Use 2-letter day abbreviations instead of 3-letter"
       }
     ]
   },

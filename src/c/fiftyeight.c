@@ -10,6 +10,7 @@ static GBitmap *s_least_sprites;
 static GBitmap *s_am_pm_indicator;
 static GBitmap *s_day_sprites;
 static GBitmap *s_date_sprites;
+static GBitmap *s_date_half_sprites;
 
 
 // Persistent storage key
@@ -56,6 +57,7 @@ static void prv_reload_sprites() {
   if (s_am_pm_indicator) gbitmap_destroy(s_am_pm_indicator);
   if (s_day_sprites) gbitmap_destroy(s_day_sprites);
   if (s_date_sprites) gbitmap_destroy(s_date_sprites);
+  if (s_date_half_sprites) gbitmap_destroy(s_date_half_sprites);
 
   // Reload all sprite sheets
   s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
@@ -65,6 +67,7 @@ static void prv_reload_sprites() {
   s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
   s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
   s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
+  s_date_half_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_HALF_SPRITES);
 
   // Invert palette colors for dark mode if enabled
   if (s_settings.dark_mode) {
@@ -75,6 +78,7 @@ static void prv_reload_sprites() {
     invert_bitmap_palette(s_am_pm_indicator);
     invert_bitmap_palette(s_day_sprites);
     invert_bitmap_palette(s_date_sprites);
+    invert_bitmap_palette(s_date_half_sprites);
   }
 }
 
@@ -179,6 +183,11 @@ static void invert_bitmap_palette(GBitmap *bitmap)
 #define DATE_HEIGHT 14
 #define DATE_SPRITES_PER_ROW 3
 
+// Date half sprite dimensions (date-half.png - 4x3 grid, 10x14 sprites)
+#define DATE_HALF_WIDTH 10
+#define DATE_HALF_HEIGHT 14
+#define DATE_HALF_SPRITES_PER_ROW 4
+
 // Function to draw a day character (letters from day.png)
 static void draw_day_char(GContext *ctx, char character, int x, int y)
 {
@@ -255,6 +264,81 @@ static void draw_day_char(GContext *ctx, char character, int x, int y)
     graphics_draw_bitmap_in_rect(ctx, char_bitmap, dest_rect);
     // Clean up the sub-bitmap
     gbitmap_destroy(char_bitmap);
+}
+
+// Function to draw a date number using half-width sprites (digits from date-half.png)
+static void draw_date_half_number(GContext *ctx, int digit, int x, int y)
+{
+    // Validate sprite sheet exists
+    if (!s_date_half_sprites)
+    {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "Date half sprite sheet is NULL");
+        return;
+    }
+    // Validate sprite sheet bounds
+    GSize sprite_sheet_size = gbitmap_get_bounds(s_date_half_sprites).size;
+    if (sprite_sheet_size.w <= 0 || sprite_sheet_size.h <= 0)
+    {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid date half sprite sheet dimensions: %dx%d",
+                sprite_sheet_size.w, sprite_sheet_size.h);
+        return;
+    }
+    // Map digit to sprite position in the 4x3 grid
+    // Layout: 1,2,3,4,5,6,7,8,9,0
+    int sprite_index = -1;
+    switch (digit)
+    {
+        case 1: sprite_index = 0; break;
+        case 2: sprite_index = 1; break;
+        case 3: sprite_index = 2; break;
+        case 4: sprite_index = 3; break;
+        case 5: sprite_index = 4; break;
+        case 6: sprite_index = 5; break;
+        case 7: sprite_index = 6; break;
+        case 8: sprite_index = 7; break;
+        case 9: sprite_index = 8; break;
+        case 0: sprite_index = 9; break;
+        default:
+            APP_LOG(APP_LOG_LEVEL_ERROR, "Unknown date half digit: %d", digit);
+            return;
+    }
+    // Calculate sprite position in the spritesheet
+    int sprite_row = sprite_index / DATE_HALF_SPRITES_PER_ROW;
+    int sprite_col = sprite_index % DATE_HALF_SPRITES_PER_ROW;
+    // Validate sprite position is within bounds
+    int max_col = sprite_sheet_size.w / DATE_HALF_WIDTH;
+    int max_row = sprite_sheet_size.h / DATE_HALF_HEIGHT;
+    if (sprite_col >= max_col || sprite_row >= max_row)
+    {
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Date half sprite position out of bounds: digit=%d, row=%d/%d, col=%d/%d",
+                digit, sprite_row, max_row, sprite_col, max_col);
+        return;
+    }
+    // Calculate source rectangle in the spritesheet
+    GRect source_rect = GRect(
+                            sprite_col * DATE_HALF_WIDTH,
+                            sprite_row * DATE_HALF_HEIGHT,
+                            DATE_HALF_WIDTH,
+                            DATE_HALF_HEIGHT
+                        );
+    // Calculate destination position
+    GRect dest_rect = GRect(x, y, DATE_HALF_WIDTH, DATE_HALF_HEIGHT);
+    // Set compositing mode for transparency
+    graphics_context_set_compositing_mode(ctx, GCompOpSet);
+    // Create a sub-bitmap for the specific sprite
+    GBitmap *digit_bitmap = gbitmap_create_as_sub_bitmap(s_date_half_sprites,
+                            source_rect);
+    if (!digit_bitmap)
+    {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to create sub-bitmap for date half digit %d",
+                digit);
+        return;
+    }
+    // Draw the sprite
+    graphics_draw_bitmap_in_rect(ctx, digit_bitmap, dest_rect);
+    // Clean up the sub-bitmap
+    gbitmap_destroy(digit_bitmap);
 }
 
 // Function to draw a date number (digits from date.png)
@@ -335,20 +419,17 @@ static void draw_date_number(GContext *ctx, int digit, int x, int y)
 // Function to draw a month number
 static void draw_month_number(GContext *ctx, int month, int x, int y)
 {
-    // Validate sprite sheet exists
-    if (!s_date_sprites)
-    {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "Date sprite sheet is NULL for month display");
-        return;
-    }
     // Month numbers are 1-12 (January=1, February=2, ..., December=12)
     int month_number = month + 1; // Convert from 0-based to 1-based
     
-    // Draw month number using date sprites
+    // Draw month number using appropriate sprites
     if (month_number < 10)
     {
-        // Single digit month (1-9)
-        draw_date_number(ctx, month_number, x, y);
+        // Single digit month (1-9) - use full-width sprites
+        if (s_date_sprites)
+        {
+            draw_date_number(ctx, month_number, x, y);
+        }
     }
     else
     {
@@ -356,8 +437,25 @@ static void draw_month_number(GContext *ctx, int month, int x, int y)
         int month_tens = month_number / 10;
         int month_ones = month_number % 10;
         int digit_spacing = 2; // Space between month digits
-        draw_date_number(ctx, month_tens, x, y);
-        draw_date_number(ctx, month_ones, x + DATE_WIDTH + digit_spacing, y);
+        
+        // Check if digits are repeating (11)
+        bool repeating_digits = (month_tens == month_ones);
+        
+        // Check if first digit is 1, 2, or 3 (only 1 applies to months)
+        bool use_mixed_sizes = (month_tens == 1) && !repeating_digits;
+        
+        if (use_mixed_sizes && s_date_half_sprites && s_date_sprites)
+        {
+            // First digit half-size, second digit full-size (for 10, 12 where first digit is 1)
+            draw_date_half_number(ctx, month_tens, x, y);
+            draw_date_number(ctx, month_ones, x + DATE_HALF_WIDTH + digit_spacing, y);
+        }
+        else if (s_date_sprites)
+        {
+            // Default to two full-size characters (11 or other cases)
+            draw_date_number(ctx, month_tens, x, y);
+            draw_date_number(ctx, month_ones, x + DATE_WIDTH + digit_spacing, y);
+        }
     }
 }
 
@@ -525,23 +623,14 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     }
     else
     {
-        // Two digit hour (10, 11, 12) - use least for 1, priority for second digit
-        hour_tens_type = DIGIT_LEAST;
-        hour_ones_type = DIGIT_PRIORITY;
+        // Two digit hour (10, 11, 12) - use subpriority for both digits
+        hour_tens_type = DIGIT_SUBPRIORITY;
+        hour_ones_type = DIGIT_SUBPRIORITY;
         
         // Special cases:
-        // 11 and 22: use two subpriority digits
-        if ((hour_tens == 1 && hour_ones == 1) || (hour_tens == 2 && hour_ones == 2))
-        {
-            hour_tens_type = DIGIT_SUBPRIORITY;
-            hour_ones_type = DIGIT_SUBPRIORITY;
-        }
-        // 24-hour times that end with zero: use double subpriority
-        else if (s_settings.use_24_hour_format && hour_ones == 0)
-        {
-            hour_tens_type = DIGIT_SUBPRIORITY;
-            hour_ones_type = DIGIT_SUBPRIORITY;
-        }
+        // 11 and 22: use two subpriority digits (already handled above)
+        // 24-hour times starting with 2 (20, 21, 22, 23): use two subpriority digits (already handled above)
+        // Note: All two-digit hours now use subpriority by default
     }
     // Determine minute digit types based on refined logic
     DigitType minute_tens_type =
@@ -744,7 +833,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         draw_month_number(ctx, current_month, padding_left, padding_top);
     }
     // Draw calendar day in top right corner with same padding as AM/PM
-    if (s_date_sprites)
+    if (s_date_sprites || s_date_half_sprites)
     {
         int padding_top = 10; // Top padding (same as AM/PM)
         int padding_right = 10; // Right padding
@@ -755,11 +844,26 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         int day_number_width;
         if (calendar_day < 10)
         {
-            day_number_width = DATE_WIDTH; // Single digit day
+            day_number_width = DATE_WIDTH; // Single digit day (full-width)
         }
         else
         {
-            day_number_width = DATE_WIDTH * 2 + digit_spacing; // Two digits with spacing
+            // Two digit day - check if we should use mixed sizes
+            int day_tens = calendar_day / 10;
+            int day_ones = calendar_day % 10;
+            bool repeating_digits = (day_tens == day_ones);
+            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) && !repeating_digits;
+            
+            if (use_mixed_sizes && s_date_half_sprites)
+            {
+                // Mixed sizes: first digit half-width, second digit full-width
+                day_number_width = DATE_HALF_WIDTH + DATE_WIDTH + digit_spacing;
+            }
+            else
+            {
+                // Default to two full-width characters
+                day_number_width = DATE_WIDTH * 2 + digit_spacing;
+            }
         }
         // Calculate starting X position for right alignment
         int start_x = bounds.size.w - day_number_width - padding_right;
@@ -767,16 +871,36 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         // Draw calendar day number
         if (calendar_day < 10)
         {
-            // Single digit day
-            draw_date_number(ctx, calendar_day, start_x, y_pos);
+            // Single digit day - use full-width sprites
+            if (s_date_sprites)
+            {
+                draw_date_number(ctx, calendar_day, start_x, y_pos);
+            }
         }
         else
         {
             // Two digit day
             int day_tens = calendar_day / 10;
             int day_ones = calendar_day % 10;
-            draw_date_number(ctx, day_tens, start_x, y_pos);
-            draw_date_number(ctx, day_ones, start_x + DATE_WIDTH + digit_spacing, y_pos);
+            
+            // Check if digits are repeating (11, 22, etc.)
+            bool repeating_digits = (day_tens == day_ones);
+            
+            // Check if first digit is 1, 2, or 3
+            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) && !repeating_digits;
+            
+            if (use_mixed_sizes && s_date_half_sprites && s_date_sprites)
+            {
+                // First digit half-size, second digit full-size (for 1x, 2x, 3x where x != tens digit)
+                draw_date_half_number(ctx, day_tens, start_x, y_pos);
+                draw_date_number(ctx, day_ones, start_x + DATE_HALF_WIDTH + digit_spacing, y_pos);
+            }
+            else if (s_date_sprites)
+            {
+                // Default to two full-size characters (repeating digits or other cases)
+                draw_date_number(ctx, day_tens, start_x, y_pos);
+                draw_date_number(ctx, day_ones, start_x + DATE_WIDTH + digit_spacing, y_pos);
+            }
         }
     }
     // Draw day abbreviation in bottom left corner
@@ -871,6 +995,7 @@ static void main_window_load(Window *window)
     s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
     s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
     s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
+    s_date_half_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_HALF_SPRITES);
     // Check if resources loaded successfully
     if (!s_priority_sprites)
     {
@@ -928,6 +1053,15 @@ static void main_window_load(Window *window)
         GSize size = gbitmap_get_bounds(s_date_sprites).size;
         APP_LOG(APP_LOG_LEVEL_INFO, "Date sprite sheet loaded: %dx%d", size.w, size.h);
     }
+    if (!s_date_half_sprites)
+    {
+        APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to load date half sprite sheet");
+    }
+    else
+    {
+        GSize size = gbitmap_get_bounds(s_date_half_sprites).size;
+        APP_LOG(APP_LOG_LEVEL_INFO, "Date half sprite sheet loaded: %dx%d", size.w, size.h);
+    }
     // Invert palette colors for dark mode
     if (s_settings.dark_mode)
     {
@@ -938,6 +1072,7 @@ static void main_window_load(Window *window)
         invert_bitmap_palette(s_am_pm_indicator);
         invert_bitmap_palette(s_day_sprites);
         invert_bitmap_palette(s_date_sprites);
+        invert_bitmap_palette(s_date_half_sprites);
     }
     // Force initial redraw
     layer_mark_dirty(s_canvas_layer);
@@ -957,6 +1092,7 @@ static void main_window_unload(Window *window)
     gbitmap_destroy(s_am_pm_indicator);
     gbitmap_destroy(s_day_sprites);
     gbitmap_destroy(s_date_sprites);
+    gbitmap_destroy(s_date_half_sprites);
 }
 
 static void init()
