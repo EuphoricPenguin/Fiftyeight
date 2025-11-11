@@ -13,17 +13,23 @@
     "displayName": "fiftyeight",
     "uuid": "eef69cfc-f0b2-44fd-b99f-576d56588ab4",
     "sdkVersion": "3",
-    "enableMultiJS": false,
+    "enableMultiJS": true,
     "targetPlatforms": [
       "aplite",
-      "diorite",
-      "flint"
+      "diorite"
     ],
     "watchapp": {
       "watchface": true
     },
-    "capabilities": [],
-    "messageKeys": [],
+    "capabilities": [
+      "configurable"
+    ],
+    "messageKeys": [
+      "DarkMode",
+      "ShowAmPm",
+      "Use24HourFormat",
+      "UseTwoLetterDay"
+    ],
     "resources": {
       "media": [
         {
@@ -63,5 +69,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
   }
 }

@@ -11,11 +11,111 @@ static GBitmap *s_am_pm_indicator;
 static GBitmap *s_day_sprites;
 static GBitmap *s_date_sprites;
 
-// Hardcoded settings (config page removed)
-static bool s_dark_mode = false;
-static bool s_show_am_pm = false;
-static bool s_use_24_hour_format = false; // false = 12-hour format, true = 24-hour format
-static bool s_use_two_letter_day = false; // true = 2 letters, false = 3 letters
+
+// Persistent storage key
+#define SETTINGS_KEY 1
+
+// Settings struct for persistent storage
+typedef struct Settings {
+  bool dark_mode;
+  bool show_am_pm;
+  bool use_24_hour_format;
+  bool use_two_letter_day;
+} Settings;
+
+static Settings s_settings = {
+  .dark_mode = false,
+  .show_am_pm = false,
+  .use_24_hour_format = false,
+  .use_two_letter_day = false
+};
+
+// Function to save settings to persistent storage
+static void prv_save_settings() {
+  persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
+}
+
+// Function to load settings from persistent storage
+static void prv_load_settings() {
+  if (persist_exists(SETTINGS_KEY)) {
+    persist_read_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
+  }
+}
+
+
+// Function to invert bitmap palette for dark mode
+static void invert_bitmap_palette(GBitmap *bitmap);
+
+// Function to reload sprites with correct palette for current dark mode setting
+static void prv_reload_sprites() {
+  // Clean up existing sprites
+  if (s_priority_sprites) gbitmap_destroy(s_priority_sprites);
+  if (s_lesser_sprites) gbitmap_destroy(s_lesser_sprites);
+  if (s_least_sprites) gbitmap_destroy(s_least_sprites);
+  if (s_subpriority_sprites) gbitmap_destroy(s_subpriority_sprites);
+  if (s_am_pm_indicator) gbitmap_destroy(s_am_pm_indicator);
+  if (s_day_sprites) gbitmap_destroy(s_day_sprites);
+  if (s_date_sprites) gbitmap_destroy(s_date_sprites);
+
+  // Reload all sprite sheets
+  s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
+  s_lesser_sprites = gbitmap_create_with_resource(RESOURCE_ID_LESSER_DIGIT);
+  s_least_sprites = gbitmap_create_with_resource(RESOURCE_ID_LEAST_DIGIT);
+  s_subpriority_sprites = gbitmap_create_with_resource(RESOURCE_ID_SUBPRIORITY_DIGIT);
+  s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
+  s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
+  s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
+
+  // Invert palette colors for dark mode if enabled
+  if (s_settings.dark_mode) {
+    invert_bitmap_palette(s_priority_sprites);
+    invert_bitmap_palette(s_lesser_sprites);
+    invert_bitmap_palette(s_least_sprites);
+    invert_bitmap_palette(s_subpriority_sprites);
+    invert_bitmap_palette(s_am_pm_indicator);
+    invert_bitmap_palette(s_day_sprites);
+    invert_bitmap_palette(s_date_sprites);
+  }
+}
+
+// AppMessage inbox received handler
+static void prv_inbox_received_handler(DictionaryIterator *iter, void *context) {
+  bool dark_mode_changed = false;
+  
+  // Read settings from Clay configuration
+  Tuple *dark_mode_t = dict_find(iter, MESSAGE_KEY_DarkMode);
+  if (dark_mode_t) {
+    bool new_dark_mode = dark_mode_t->value->int32 == 1;
+    dark_mode_changed = (s_settings.dark_mode != new_dark_mode);
+    s_settings.dark_mode = new_dark_mode;
+  }
+
+  Tuple *show_am_pm_t = dict_find(iter, MESSAGE_KEY_ShowAmPm);
+  if (show_am_pm_t) {
+    s_settings.show_am_pm = show_am_pm_t->value->int32 == 1;
+  }
+
+  Tuple *use_24_hour_format_t = dict_find(iter, MESSAGE_KEY_Use24HourFormat);
+  if (use_24_hour_format_t) {
+    s_settings.use_24_hour_format = use_24_hour_format_t->value->int32 == 1;
+  }
+
+  Tuple *use_two_letter_day_t = dict_find(iter, MESSAGE_KEY_UseTwoLetterDay);
+  if (use_two_letter_day_t) {
+    s_settings.use_two_letter_day = use_two_letter_day_t->value->int32 == 1;
+  }
+
+  // Save settings to persistent storage
+  prv_save_settings();
+
+  // If dark mode changed, reload sprites with correct palette
+  if (dark_mode_changed) {
+    prv_reload_sprites();
+  }
+
+  // Force redraw to apply new settings
+  layer_mark_dirty(s_canvas_layer);
+}
 
 // Rotating dot variables
 static int s_current_second = 0;
@@ -381,7 +481,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed)
 static void canvas_update_proc(Layer *layer, GContext *ctx)
 {
     // Set background color based on dark mode setting
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorBlack);
     }
@@ -397,7 +497,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int minute = tick_time->tm_min;
     bool is_pm = (hour >= 12); // Determine AM/PM
     // Convert hour based on time format setting
-    if (!s_use_24_hour_format)
+    if (!s_settings.use_24_hour_format)
     {
         if (hour > 12)
         {
@@ -437,7 +537,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
             hour_ones_type = DIGIT_SUBPRIORITY;
         }
         // 24-hour times that end with zero: use double subpriority
-        else if (s_use_24_hour_format && hour_ones == 0)
+        else if (s_settings.use_24_hour_format && hour_ones == 0)
         {
             hour_tens_type = DIGIT_SUBPRIORITY;
             hour_ones_type = DIGIT_SUBPRIORITY;
@@ -501,7 +601,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int hour_dot_x = center_x + (int)(radius * my_cos(hour_angle));
     int hour_dot_y = center_y + (int)(radius * my_sin(hour_angle));
     // Set hour dot color to gray for visibility
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorLightGray);
     }
@@ -520,7 +620,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int minute_dot_x = center_x + (int)(radius * my_cos(minute_angle));
     int minute_dot_y = center_y + (int)(radius * my_sin(minute_angle));
     // Set minute dot color to gray for visibility
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorLightGray);
     }
@@ -539,7 +639,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int dot_x = center_x + (int)(radius * my_cos(angle));
     int dot_y = center_y + (int)(radius * my_sin(angle));
     // Set second dot color based on dark mode
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorWhite);
     }
@@ -554,7 +654,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int time_display_width = total_width; // Exact total width
     int time_display_x = (bounds.size.w - time_display_width) / 2;
     int time_display_y = (bounds.size.h - time_display_height) / 2;
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorBlack);
     }
@@ -584,7 +684,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
                  (hour_ones_type == DIGIT_LEAST) ? LEAST_WIDTH : SUBPRIORITY_WIDTH;
     current_x += digit_spacing; // Space after hour ones
     // Draw colon between hours and minutes
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         graphics_context_set_fill_color(ctx, GColorWhite);
     }
@@ -605,7 +705,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     // Draw minute ones digit
     draw_digit(ctx, minute_ones, minute_ones_type, current_x, y_pos);
     // Draw AM/PM indicator in top left corner with padding (only if enabled and 12-hour format)
-    if (s_show_am_pm && !s_use_24_hour_format)
+    if (s_settings.show_am_pm && !s_settings.use_24_hour_format)
     {
         int am_pm_width = 20;
         int am_pm_height = 14;
@@ -688,7 +788,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         int day_of_week = tick_time->tm_wday;
         // Map day of week to abbreviation based on setting
         const char *day_abbrev = "";
-        if (s_use_two_letter_day)
+        if (s_settings.use_two_letter_day)
         {
             // Two-letter abbreviations
             switch (day_of_week)
@@ -722,7 +822,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         int y_pos = bounds.size.h - DAY_HEIGHT - padding_bottom;
         int start_x = padding_left;
         // Draw day of week abbreviation with split positioning
-        if (s_use_two_letter_day)
+        if (s_settings.use_two_letter_day)
         {
             // Two-letter abbreviations: first letter in bottom left, last letter in bottom right
             draw_day_char(ctx, day_abbrev[0], start_x,
@@ -829,7 +929,7 @@ static void main_window_load(Window *window)
         APP_LOG(APP_LOG_LEVEL_INFO, "Date sprite sheet loaded: %dx%d", size.w, size.h);
     }
     // Invert palette colors for dark mode
-    if (s_dark_mode)
+    if (s_settings.dark_mode)
     {
         invert_bitmap_palette(s_priority_sprites);
         invert_bitmap_palette(s_lesser_sprites);
@@ -861,6 +961,9 @@ static void main_window_unload(Window *window)
 
 static void init()
 {
+    // Load settings from persistent storage
+    prv_load_settings();
+    
     // Create main Window element and assign to pointer
     s_main_window = window_create();
     // Set handlers to manage the elements inside the Window
@@ -871,6 +974,10 @@ static void init()
     });
     // Show the Window on the watch, with animated=true
     window_stack_push(s_main_window, true);
+    
+    // Initialize AppMessage for Clay configuration
+    app_message_register_inbox_received(prv_inbox_received_handler);
+    app_message_open(128, 128);
 }
 
 static void deinit()
