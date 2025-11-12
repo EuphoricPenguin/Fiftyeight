@@ -17,30 +17,35 @@ static GBitmap *s_date_half_sprites;
 #define SETTINGS_KEY 1
 
 // Settings struct for persistent storage
-typedef struct Settings {
-  bool dark_mode;
-  bool show_am_pm;
-  bool use_24_hour_format;
-  bool use_two_letter_day;
+typedef struct Settings
+{
+    bool dark_mode;
+    bool show_am_pm;
+    bool use_24_hour_format;
+    bool use_two_letter_day;
 } Settings;
 
-static Settings s_settings = {
-  .dark_mode = false,
-  .show_am_pm = false,
-  .use_24_hour_format = false,
-  .use_two_letter_day = false
+static Settings s_settings =
+{
+    .dark_mode = false,
+    .show_am_pm = false,
+    .use_24_hour_format = false,
+    .use_two_letter_day = false
 };
 
 // Function to save settings to persistent storage
-static void prv_save_settings() {
-  persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
+static void prv_save_settings()
+{
+    persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
 }
 
 // Function to load settings from persistent storage
-static void prv_load_settings() {
-  if (persist_exists(SETTINGS_KEY)) {
-    persist_read_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
-  }
+static void prv_load_settings()
+{
+    if (persist_exists(SETTINGS_KEY))
+    {
+        persist_read_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
+    }
 }
 
 
@@ -48,77 +53,78 @@ static void prv_load_settings() {
 static void invert_bitmap_palette(GBitmap *bitmap);
 
 // Function to reload sprites with correct palette for current dark mode setting
-static void prv_reload_sprites() {
-  // Clean up existing sprites
-  if (s_priority_sprites) gbitmap_destroy(s_priority_sprites);
-  if (s_lesser_sprites) gbitmap_destroy(s_lesser_sprites);
-  if (s_least_sprites) gbitmap_destroy(s_least_sprites);
-  if (s_subpriority_sprites) gbitmap_destroy(s_subpriority_sprites);
-  if (s_am_pm_indicator) gbitmap_destroy(s_am_pm_indicator);
-  if (s_day_sprites) gbitmap_destroy(s_day_sprites);
-  if (s_date_sprites) gbitmap_destroy(s_date_sprites);
-  if (s_date_half_sprites) gbitmap_destroy(s_date_half_sprites);
-
-  // Reload all sprite sheets
-  s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
-  s_lesser_sprites = gbitmap_create_with_resource(RESOURCE_ID_LESSER_DIGIT);
-  s_least_sprites = gbitmap_create_with_resource(RESOURCE_ID_LEAST_DIGIT);
-  s_subpriority_sprites = gbitmap_create_with_resource(RESOURCE_ID_SUBPRIORITY_DIGIT);
-  s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
-  s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
-  s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
-  s_date_half_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_HALF_SPRITES);
-
-  // Invert palette colors for dark mode if enabled
-  if (s_settings.dark_mode) {
-    invert_bitmap_palette(s_priority_sprites);
-    invert_bitmap_palette(s_lesser_sprites);
-    invert_bitmap_palette(s_least_sprites);
-    invert_bitmap_palette(s_subpriority_sprites);
-    invert_bitmap_palette(s_am_pm_indicator);
-    invert_bitmap_palette(s_day_sprites);
-    invert_bitmap_palette(s_date_sprites);
-    invert_bitmap_palette(s_date_half_sprites);
-  }
+static void prv_reload_sprites()
+{
+    // Clean up existing sprites
+    if (s_priority_sprites) gbitmap_destroy(s_priority_sprites);
+    if (s_lesser_sprites) gbitmap_destroy(s_lesser_sprites);
+    if (s_least_sprites) gbitmap_destroy(s_least_sprites);
+    if (s_subpriority_sprites) gbitmap_destroy(s_subpriority_sprites);
+    if (s_am_pm_indicator) gbitmap_destroy(s_am_pm_indicator);
+    if (s_day_sprites) gbitmap_destroy(s_day_sprites);
+    if (s_date_sprites) gbitmap_destroy(s_date_sprites);
+    if (s_date_half_sprites) gbitmap_destroy(s_date_half_sprites);
+    // Reload all sprite sheets
+    s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
+    s_lesser_sprites = gbitmap_create_with_resource(RESOURCE_ID_LESSER_DIGIT);
+    s_least_sprites = gbitmap_create_with_resource(RESOURCE_ID_LEAST_DIGIT);
+    s_subpriority_sprites = gbitmap_create_with_resource(
+                                RESOURCE_ID_SUBPRIORITY_DIGIT);
+    s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
+    s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
+    s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
+    s_date_half_sprites = gbitmap_create_with_resource(
+                              RESOURCE_ID_DATE_HALF_SPRITES);
+    // Invert palette colors for dark mode if enabled
+    if (s_settings.dark_mode)
+    {
+        invert_bitmap_palette(s_priority_sprites);
+        invert_bitmap_palette(s_lesser_sprites);
+        invert_bitmap_palette(s_least_sprites);
+        invert_bitmap_palette(s_subpriority_sprites);
+        invert_bitmap_palette(s_am_pm_indicator);
+        invert_bitmap_palette(s_day_sprites);
+        invert_bitmap_palette(s_date_sprites);
+        invert_bitmap_palette(s_date_half_sprites);
+    }
 }
 
 // AppMessage inbox received handler
-static void prv_inbox_received_handler(DictionaryIterator *iter, void *context) {
-  bool dark_mode_changed = false;
-  
-  // Read settings from Clay configuration
-  Tuple *dark_mode_t = dict_find(iter, MESSAGE_KEY_DarkMode);
-  if (dark_mode_t) {
-    bool new_dark_mode = dark_mode_t->value->int32 == 1;
-    dark_mode_changed = (s_settings.dark_mode != new_dark_mode);
-    s_settings.dark_mode = new_dark_mode;
-  }
-
-  Tuple *show_am_pm_t = dict_find(iter, MESSAGE_KEY_ShowAmPm);
-  if (show_am_pm_t) {
-    s_settings.show_am_pm = show_am_pm_t->value->int32 == 1;
-  }
-
-  Tuple *use_24_hour_format_t = dict_find(iter, MESSAGE_KEY_Use24HourFormat);
-  if (use_24_hour_format_t) {
-    s_settings.use_24_hour_format = use_24_hour_format_t->value->int32 == 1;
-  }
-
-  Tuple *use_two_letter_day_t = dict_find(iter, MESSAGE_KEY_UseTwoLetterDay);
-  if (use_two_letter_day_t) {
-    s_settings.use_two_letter_day = use_two_letter_day_t->value->int32 == 1;
-  }
-
-  // Save settings to persistent storage
-  prv_save_settings();
-
-  // If dark mode changed, reload sprites with correct palette
-  if (dark_mode_changed) {
-    prv_reload_sprites();
-  }
-
-  // Force redraw to apply new settings
-  layer_mark_dirty(s_canvas_layer);
+static void prv_inbox_received_handler(DictionaryIterator *iter, void *context)
+{
+    bool dark_mode_changed = false;
+    // Read settings from Clay configuration
+    Tuple *dark_mode_t = dict_find(iter, MESSAGE_KEY_DarkMode);
+    if (dark_mode_t)
+    {
+        bool new_dark_mode = dark_mode_t->value->int32 == 1;
+        dark_mode_changed = (s_settings.dark_mode != new_dark_mode);
+        s_settings.dark_mode = new_dark_mode;
+    }
+    Tuple *show_am_pm_t = dict_find(iter, MESSAGE_KEY_ShowAmPm);
+    if (show_am_pm_t)
+    {
+        s_settings.show_am_pm = show_am_pm_t->value->int32 == 1;
+    }
+    Tuple *use_24_hour_format_t = dict_find(iter, MESSAGE_KEY_Use24HourFormat);
+    if (use_24_hour_format_t)
+    {
+        s_settings.use_24_hour_format = use_24_hour_format_t->value->int32 == 1;
+    }
+    Tuple *use_two_letter_day_t = dict_find(iter, MESSAGE_KEY_UseTwoLetterDay);
+    if (use_two_letter_day_t)
+    {
+        s_settings.use_two_letter_day = use_two_letter_day_t->value->int32 == 1;
+    }
+    // Save settings to persistent storage
+    prv_save_settings();
+    // If dark mode changed, reload sprites with correct palette
+    if (dark_mode_changed)
+    {
+        prv_reload_sprites();
+    }
+    // Force redraw to apply new settings
+    layer_mark_dirty(s_canvas_layer);
 }
 
 // Rotating dot variables
@@ -331,7 +337,8 @@ static void draw_date_half_number(GContext *ctx, int digit, int x, int y)
                             source_rect);
     if (!digit_bitmap)
     {
-        APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to create sub-bitmap for date half digit %d",
+        APP_LOG(APP_LOG_LEVEL_ERROR,
+                "Failed to create sub-bitmap for date half digit %d",
                 digit);
         return;
     }
@@ -421,7 +428,6 @@ static void draw_month_number(GContext *ctx, int month, int x, int y)
 {
     // Month numbers are 1-12 (January=1, February=2, ..., December=12)
     int month_number = month + 1; // Convert from 0-based to 1-based
-    
     // Draw month number using appropriate sprites
     if (month_number < 10)
     {
@@ -437,13 +443,10 @@ static void draw_month_number(GContext *ctx, int month, int x, int y)
         int month_tens = month_number / 10;
         int month_ones = month_number % 10;
         int digit_spacing = 2; // Space between month digits
-        
         // Check if digits are repeating (11)
         bool repeating_digits = (month_tens == month_ones);
-        
         // Check if first digit is 1, 2, or 3 (only 1 applies to months)
         bool use_mixed_sizes = (month_tens == 1) && !repeating_digits;
-        
         if (use_mixed_sizes && s_date_half_sprites && s_date_sprites)
         {
             // First digit half-size, second digit full-size (for 10, 12 where first digit is 1)
@@ -615,7 +618,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     // Determine hour digit types based on refined logic
     DigitType hour_tens_type = DIGIT_PRIORITY; // Initialize with default
     DigitType hour_ones_type = DIGIT_PRIORITY; // Initialize with default
-    
     if (hour_tens == 0)
     {
         // Single digit hour (1-9) - use priority digit (wide)
@@ -626,7 +628,6 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
         // Two digit hour (10, 11, 12) - use subpriority for both digits
         hour_tens_type = DIGIT_SUBPRIORITY;
         hour_ones_type = DIGIT_SUBPRIORITY;
-        
         // Special cases:
         // 11 and 22: use two subpriority digits (already handled above)
         // 24-hour times starting with 2 (20, 21, 22, 23): use two subpriority digits (already handled above)
@@ -852,8 +853,8 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
             int day_tens = calendar_day / 10;
             int day_ones = calendar_day % 10;
             bool repeating_digits = (day_tens == day_ones);
-            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) && !repeating_digits;
-            
+            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) &&
+                                   !repeating_digits;
             if (use_mixed_sizes && s_date_half_sprites)
             {
                 // Mixed sizes: first digit half-width, second digit full-width
@@ -882,18 +883,17 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
             // Two digit day
             int day_tens = calendar_day / 10;
             int day_ones = calendar_day % 10;
-            
             // Check if digits are repeating (11, 22, etc.)
             bool repeating_digits = (day_tens == day_ones);
-            
             // Check if first digit is 1, 2, or 3
-            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) && !repeating_digits;
-            
+            bool use_mixed_sizes = (day_tens == 1 || day_tens == 2 || day_tens == 3) &&
+                                   !repeating_digits;
             if (use_mixed_sizes && s_date_half_sprites && s_date_sprites)
             {
                 // First digit half-size, second digit full-size (for 1x, 2x, 3x where x != tens digit)
                 draw_date_half_number(ctx, day_tens, start_x, y_pos);
-                draw_date_number(ctx, day_ones, start_x + DATE_HALF_WIDTH + digit_spacing, y_pos);
+                draw_date_number(ctx, day_ones, start_x + DATE_HALF_WIDTH + digit_spacing,
+                                 y_pos);
             }
             else if (s_date_sprites)
             {
@@ -995,7 +995,8 @@ static void main_window_load(Window *window)
     s_am_pm_indicator = gbitmap_create_with_resource(RESOURCE_ID_AM_PM_INDICATOR);
     s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
     s_date_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_SPRITES);
-    s_date_half_sprites = gbitmap_create_with_resource(RESOURCE_ID_DATE_HALF_SPRITES);
+    s_date_half_sprites = gbitmap_create_with_resource(
+                              RESOURCE_ID_DATE_HALF_SPRITES);
     // Check if resources loaded successfully
     if (!s_priority_sprites)
     {
@@ -1060,7 +1061,8 @@ static void main_window_load(Window *window)
     else
     {
         GSize size = gbitmap_get_bounds(s_date_half_sprites).size;
-        APP_LOG(APP_LOG_LEVEL_INFO, "Date half sprite sheet loaded: %dx%d", size.w, size.h);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Date half sprite sheet loaded: %dx%d", size.w,
+                size.h);
     }
     // Invert palette colors for dark mode
     if (s_settings.dark_mode)
@@ -1099,7 +1101,6 @@ static void init()
 {
     // Load settings from persistent storage
     prv_load_settings();
-    
     // Create main Window element and assign to pointer
     s_main_window = window_create();
     // Set handlers to manage the elements inside the Window
@@ -1110,7 +1111,6 @@ static void init()
     });
     // Show the Window on the watch, with animated=true
     window_stack_push(s_main_window, true);
-    
     // Initialize AppMessage for Clay configuration
     app_message_register_inbox_received(prv_inbox_received_handler);
     app_message_open(128, 128);
