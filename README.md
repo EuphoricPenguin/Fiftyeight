@@ -3,9 +3,9 @@
 <br/>
 
 <div style="display: flex; justify-content: left; gap: 10px;">
-  <img src="./add/fiftyeight-light-favorite.png" width="15%" />
-  <img src="./add/fiftyeight-dark.png" width="15%" />
-  <img src="./add/fiftyeight-light.png" width="15%" />
+  <img src="./add/fiftyeight-light-favorite.png"/>
+  <img src="./add/fiftyeight-dark.png"/>
+  <img src="./add/fiftyeight-light.png"/>
 </div>
 
 <br/>
