@@ -26,10 +26,12 @@
     ],
     "messageKeys": [
       "DarkMode",
-      "ShowAmPm",
       "Use24HourFormat",
       "UseTwoLetterDay",
-      "DebugMode"
+      "DebugMode",
+      "TopLeftWidget",
+      "TopRightWidget",
+      "StepGoal"
     ],
     "resources": {
       "media": [
@@ -63,6 +65,16 @@
           "type": "bitmap",
           "name": "DATE_SPRITES",
           "file": "font sprites/date.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "BATTERY",
+          "file": "font sprites/battery.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "STEPS",
+          "file": "font sprites/steps.png"
         }
       ]
     }
