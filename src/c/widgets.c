@@ -347,18 +347,18 @@ static void draw_steps_widget(GContext *ctx, int x, int y) {
     if (!s_steps_sprites) return;
     
     // Calculate which sprite frame to use based on step progression
-    // Each frame represents 1/9th of the step goal
-    // Top frame (0) = no steps, bottom frame (8) = 100% complete
+    // Frame 0: any steps > 0 (first dot turns on immediately)
+    // Frames 1-8: evenly spaced intervals from 12.5% to 100% of goal
     int frame_index;
     if (s_step_count >= s_step_goal) frame_index = 8; // Full/complete (bottom)
-    else if (s_step_count >= (s_step_goal * 8/9)) frame_index = 7;
-    else if (s_step_count >= (s_step_goal * 7/9)) frame_index = 6;
-    else if (s_step_count >= (s_step_goal * 6/9)) frame_index = 5;
-    else if (s_step_count >= (s_step_goal * 5/9)) frame_index = 4;
-    else if (s_step_count >= (s_step_goal * 4/9)) frame_index = 3;
-    else if (s_step_count >= (s_step_goal * 3/9)) frame_index = 2;
-    else if (s_step_count >= (s_step_goal * 2/9)) frame_index = 1;
-    else if (s_step_count >= (s_step_goal * 1/9)) frame_index = 0;
+    else if (s_step_count >= (s_step_goal * 7/8)) frame_index = 8; // 87.5%
+    else if (s_step_count >= (s_step_goal * 6/8)) frame_index = 7; // 75%
+    else if (s_step_count >= (s_step_goal * 5/8)) frame_index = 6; // 62.5%
+    else if (s_step_count >= (s_step_goal * 4/8)) frame_index = 5; // 50%
+    else if (s_step_count >= (s_step_goal * 3/8)) frame_index = 4; // 37.5%
+    else if (s_step_count >= (s_step_goal * 2/8)) frame_index = 3; // 25%
+    else if (s_step_count >= (s_step_goal * 1/8)) frame_index = 2; // 12.5%
+    else if (s_step_count > 0) frame_index = 1; // Any steps > 0 (first dot)
     else frame_index = 0; // No steps (top)
     
     // Steps sprite dimensions: 44x14, 1 column, 9 rows
