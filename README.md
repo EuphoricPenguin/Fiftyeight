@@ -1,20 +1,10 @@
 <img src="./add/banner.png" width="50%"/>
 
-<br/>
-
-<div style="display: flex; justify-content: left; gap: 10px;">
-  <img src="./add/fiftyeight-light-favorite.png"/>
-  <img src="./add/fiftyeight-dark.png"/>
-  <img src="./add/fiftyeight-light.png"/>
-</div>
-
-<br/>
-
 [Install on Rebble](https://apps.rebble.io/en_US/application/6912d087ad49bb00097251a0)
 
 <br/>
 
-Fiftyeight tells the time. It has won no awards for design, but it does reimagine the WV-58 with dynamic glyphs that change in width to emphasize the hour, has an analog clock constellation that updates each second, and displays the date and weekday in your choice of two or three letters. If you're a 24-hour time weirdo, the watchface will replace the AM/PM indicator with the current month. You can also choose this option for the regular 12-hour clock. Oh, and last but not least: light and dark modes to suit your taste.
+Fiftyeight tells the time, but it doesn't tell you what it should look like. Hate the analog clock? You can hide it. Figure the AM/PM indicator and date are useless? Replace them with a battery indicator and step counter. Fiftyeight lets you decide what matters most so that useful stuff is available at a glance.
 
 <sub>Developed with the help of Cline via DeepSeek. Sprites, design, and architectural decisions by EuphoricPenguin.</sub>
 
