@@ -12,6 +12,9 @@ static int s_battery_percent = 100;
 static int s_step_count = 0;
 static int s_step_goal = 10000; // Default step goal
 
+// Health service state tracking
+static bool s_health_services_available = false;
+
 // Sprite sheets
 static GBitmap *s_battery_sprites = NULL;
 static GBitmap *s_steps_sprites = NULL;
@@ -170,16 +173,22 @@ void widgets_init(void) {
     battery_state_service_subscribe(battery_state_handler);
     battery_state_handler(battery_state_service_peek());
     
-    // Subscribe to health service updates
-    health_service_events_subscribe(health_event_handler, NULL);
+    // Conservative approach: Never subscribe to health services to prevent pop-ups
+    // We cannot safely test subscription without causing pop-ups, so we assume
+    // health services are disabled and show empty state to avoid annoying users
+    bool step_counter_selected = (s_widget_config.top_left_widget == WIDGET_STEP_COUNT || 
+                                 s_widget_config.top_right_widget == WIDGET_STEP_COUNT);
     
-    // Get initial step count for current day using Pebble SDK's time_start_of_today()
-    time_t start = time_start_of_today();
-    time_t end = start + SECONDS_PER_DAY - 1; // End of day (11:59:59 PM)
-    
-    // Get steps for current day only
-    HealthValue steps = health_service_sum(HealthMetricStepCount, start, end);
-    s_step_count = (int)steps;
+    if (step_counter_selected && PBL_PLATFORM_TYPE_CURRENT != PlatformTypeAplite) {
+        // Step counter is selected but we won't subscribe to health services
+        // to prevent pop-ups when health services are disabled
+        s_step_count = 0;
+        APP_LOG(APP_LOG_LEVEL_INFO, "Step counter selected but health services not subscribed to prevent pop-ups");
+    } else {
+        // Step counter not selected or on Aplite platform
+        s_step_count = 0;
+        APP_LOG(APP_LOG_LEVEL_INFO, "Step counter disabled or Aplite platform");
+    }
 }
 
 // Reload widget sprites (for dark mode changes)
@@ -247,6 +256,29 @@ void widgets_set_config(WidgetConfig config) {
     s_widget_config = config;
     APP_LOG(APP_LOG_LEVEL_INFO, "Widget config updated: top_left=%d, top_right=%d", 
             s_widget_config.top_left_widget, s_widget_config.top_right_widget);
+    
+    // Check if step counter is being enabled via config change
+    bool step_counter_selected = (s_widget_config.top_left_widget == WIDGET_STEP_COUNT || 
+                                 s_widget_config.top_right_widget == WIDGET_STEP_COUNT);
+    
+    if (step_counter_selected && PBL_PLATFORM_TYPE_CURRENT != PlatformTypeAplite) {
+        // When step counter is enabled via config change, try to subscribe to health services
+        // This allows detection of when health services become available after being disabled
+        bool subscription_success = health_service_events_subscribe(health_event_handler, NULL);
+        
+        if (subscription_success) {
+            // Health services are available, get current step count
+            time_t start = time_start_of_today();
+            time_t end = start + SECONDS_PER_DAY - 1;
+            HealthValue steps = health_service_sum(HealthMetricStepCount, start, end);
+            s_step_count = (int)steps;
+            APP_LOG(APP_LOG_LEVEL_INFO, "Health services available - step counter activated with %d steps", s_step_count);
+        } else {
+            // Health services not available, set step count to 0
+            s_step_count = 0;
+            APP_LOG(APP_LOG_LEVEL_INFO, "Health services not available - step counter shows empty state");
+        }
+    }
 }
 
 // Draw month date widget
@@ -451,6 +483,7 @@ void widgets_draw_corner(GContext *ctx, CornerPosition corner, struct tm *tick_t
 void widgets_handle_battery_update(void) {
     battery_state_handler(battery_state_service_peek());
 }
+
 
 // Set step goal
 void widgets_set_step_goal(int step_goal) {

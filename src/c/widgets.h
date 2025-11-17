@@ -48,6 +48,7 @@ void widgets_handle_health_update(void);
 void widgets_set_step_goal(int step_goal);
 void widgets_reload_sprites(void);
 
+
 // Sprite sheet dimensions
 #define DATE_WIDTH 20
 #define DATE_HEIGHT 14
