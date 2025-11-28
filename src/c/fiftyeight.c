@@ -7,6 +7,7 @@ static Window *s_main_window;
 static Layer *s_canvas_layer;
 static GBitmap *s_priority_sprites;
 static GBitmap *s_subpriority_sprites;
+static GBitmap *s_midpriority_sprites;
 static GBitmap *s_day_sprites;
 
 // Debug mode variables
@@ -56,17 +57,21 @@ static void prv_reload_sprites()
     // Clean up existing sprites
     if (s_priority_sprites) gbitmap_destroy(s_priority_sprites);
     if (s_subpriority_sprites) gbitmap_destroy(s_subpriority_sprites);
+    if (s_midpriority_sprites) gbitmap_destroy(s_midpriority_sprites);
     if (s_day_sprites) gbitmap_destroy(s_day_sprites);
     // Reload all sprite sheets
     s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
     s_subpriority_sprites = gbitmap_create_with_resource(
                                 RESOURCE_ID_SUBPRIORITY_DIGIT);
+    s_midpriority_sprites = gbitmap_create_with_resource(
+                                RESOURCE_ID_MIDPRIORITY_DIGIT);
     s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
     // Invert palette colors for dark mode if enabled
     if (s_settings.dark_mode)
     {
         invert_bitmap_palette(s_priority_sprites);
         invert_bitmap_palette(s_subpriority_sprites);
+        invert_bitmap_palette(s_midpriority_sprites);
         invert_bitmap_palette(s_day_sprites);
     }
 }
@@ -302,6 +307,7 @@ static void invert_bitmap_palette(GBitmap *bitmap)
 // Sprite sheet dimensions
 #define PRIORITY_WIDTH 40
 #define SUBPRIORITY_WIDTH 27
+#define MIDPRIORITY_WIDTH 34
 #define SPRITE_HEIGHT 18
 #define SPRITES_PER_ROW 3
 #define SPRITES_PER_COLUMN 4
@@ -402,8 +408,25 @@ static void draw_day_char(GContext *ctx, char character, int x, int y)
 typedef enum
 {
     DIGIT_PRIORITY,
-    DIGIT_SUBPRIORITY
+    DIGIT_SUBPRIORITY,
+    DIGIT_MIDPRIORITY
 } DigitType;
+
+// Helper function to get digit width based on type
+static int get_digit_width(DigitType type)
+{
+    switch (type)
+    {
+        case DIGIT_PRIORITY:
+            return PRIORITY_WIDTH;
+        case DIGIT_SUBPRIORITY:
+            return SUBPRIORITY_WIDTH;
+        case DIGIT_MIDPRIORITY:
+            return MIDPRIORITY_WIDTH;
+        default:
+            return SUBPRIORITY_WIDTH; // Default fallback
+    }
+}
 
 // Function to draw a digit with specified type
 static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y)
@@ -420,6 +443,10 @@ static void draw_digit(GContext *ctx, int digit, DigitType type, int x, int y)
         case DIGIT_SUBPRIORITY:
             sprite_sheet = s_subpriority_sprites;
             sprite_width = SUBPRIORITY_WIDTH;
+            break;
+        case DIGIT_MIDPRIORITY:
+            sprite_sheet = s_midpriority_sprites;
+            sprite_width = MIDPRIORITY_WIDTH;
             break;
     }
     // Validate sprite sheet exists
@@ -574,17 +601,19 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     int minute_tens = minute / 10;
     int minute_ones = minute % 10;
     // Simplified digit logic:
-    // - Single digit hours use priority (wide)
+    // - Single digit hours use priority (wide), minutes use midpriority
     // - All two-digit numbers use subpriority
     DigitType hour_tens_type = DIGIT_SUBPRIORITY;
     DigitType hour_ones_type = DIGIT_SUBPRIORITY;
     DigitType minute_tens_type = DIGIT_SUBPRIORITY;
     DigitType minute_ones_type = DIGIT_SUBPRIORITY;
     
-    // Single digit hour (1-9) - use priority digit (wide)
+    // Single digit hour (1-9) - use priority digit (wide) and midpriority for minutes
     if (hour_tens == 0)
     {
         hour_ones_type = DIGIT_PRIORITY;
+        minute_tens_type = DIGIT_MIDPRIORITY;
+        minute_ones_type = DIGIT_MIDPRIORITY;
     }
     // Calculate total width of time display with spacing
     int total_width = 0;
@@ -593,20 +622,20 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     // Add hour tens width if present
     if (hour_tens > 0)
     {
-        total_width += (hour_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+        total_width += get_digit_width(hour_tens_type);
         total_width += digit_spacing; // Space after hour tens
     }
     // Add hour ones width
-    total_width += (hour_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+    total_width += get_digit_width(hour_ones_type);
     total_width += digit_spacing; // Space after hour ones
     // Add colon width
     total_width += colon_width;
     total_width += digit_spacing; // Space after colon
     // Add minute tens width
-    total_width += (minute_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+    total_width += get_digit_width(minute_tens_type);
     total_width += digit_spacing; // Space after minute tens
     // Add minute ones width
-    total_width += (minute_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+    total_width += get_digit_width(minute_ones_type);
     GRect bounds = layer_get_bounds(layer);
     // Circular path parameters
     int center_x = bounds.size.w / 2;
@@ -707,12 +736,12 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     if (hour_tens > 0)
     {
         draw_digit(ctx, hour_tens, hour_tens_type, current_x, y_pos);
-        current_x += (hour_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+        current_x += get_digit_width(hour_tens_type);
         current_x += digit_spacing; // Space after hour tens
     }
     // Draw hour ones digit
     draw_digit(ctx, hour_ones, hour_ones_type, current_x, y_pos);
-    current_x += (hour_ones_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+    current_x += get_digit_width(hour_ones_type);
     current_x += digit_spacing; // Space after hour ones
     // Draw colon between hours and minutes
     if (s_settings.dark_mode)
@@ -729,7 +758,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx)
     current_x += digit_spacing; // Space after colon
     // Draw minute tens digit
     draw_digit(ctx, minute_tens, minute_tens_type, current_x, y_pos);
-    current_x += (minute_tens_type == DIGIT_PRIORITY) ? PRIORITY_WIDTH : SUBPRIORITY_WIDTH;
+    current_x += get_digit_width(minute_tens_type);
     current_x += digit_spacing; // Space after minute tens
     // Draw minute ones digit
     draw_digit(ctx, minute_ones, minute_ones_type, current_x, y_pos);
@@ -822,6 +851,8 @@ static void main_window_load(Window *window)
     s_priority_sprites = gbitmap_create_with_resource(RESOURCE_ID_PRIORITY_DIGIT);
     s_subpriority_sprites = gbitmap_create_with_resource(
                                 RESOURCE_ID_SUBPRIORITY_DIGIT);
+    s_midpriority_sprites = gbitmap_create_with_resource(
+                                RESOURCE_ID_MIDPRIORITY_DIGIT);
     s_day_sprites = gbitmap_create_with_resource(RESOURCE_ID_DAY_SPRITES);
     // Check if resources loaded successfully
     if (!s_priority_sprites)
@@ -852,6 +883,7 @@ static void main_window_load(Window *window)
     {
         invert_bitmap_palette(s_priority_sprites);
         invert_bitmap_palette(s_subpriority_sprites);
+        invert_bitmap_palette(s_midpriority_sprites);
         invert_bitmap_palette(s_day_sprites);
     }
     // Force initial redraw
@@ -867,6 +899,7 @@ static void main_window_unload(Window *window)
     layer_destroy(s_canvas_layer);
     gbitmap_destroy(s_priority_sprites);
     gbitmap_destroy(s_subpriority_sprites);
+    gbitmap_destroy(s_midpriority_sprites);
     gbitmap_destroy(s_day_sprites);
 }
 

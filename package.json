@@ -47,37 +47,42 @@
         {
           "type": "bitmap",
           "name": "PRIORITY_DIGIT",
-          "file": "font sprites/priority-digit.png"
+          "file": "sprites/priority-digit.png"
         },
         {
           "type": "bitmap",
           "name": "SUBPRIORITY_DIGIT",
-          "file": "font sprites/subpriority-digit.png"
+          "file": "sprites/subpriority-digit.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "MIDPRIORITY_DIGIT",
+          "file": "sprites/midpriority-digit.png"
         },
         {
           "type": "bitmap",
           "name": "AM_PM_INDICATOR",
-          "file": "font sprites/A-P.png"
+          "file": "sprites/A-P.png"
         },
         {
           "type": "bitmap",
           "name": "DAY_SPRITES",
-          "file": "font sprites/day.png"
+          "file": "sprites/day.png"
         },
         {
           "type": "bitmap",
           "name": "DATE_SPRITES",
-          "file": "font sprites/date.png"
+          "file": "sprites/date.png"
         },
         {
           "type": "bitmap",
           "name": "BATTERY",
-          "file": "font sprites/battery.png"
+          "file": "sprites/battery.png"
         },
         {
           "type": "bitmap",
           "name": "STEPS",
-          "file": "font sprites/steps.png"
+          "file": "sprites/steps.png"
         }
       ]
     }
