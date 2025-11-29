@@ -33,8 +33,10 @@ typedef struct Settings
     bool use_two_letter_day;
     bool debug_mode;
     bool debug_logging;
+    bool debug_hourly_chime_test;
     bool show_second_dot;
     bool show_hour_minute_dots;
+    bool hourly_chime_vibration;
     int step_goal;
     WidgetConfig widget_config;
 } Settings;

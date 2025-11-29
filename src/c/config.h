@@ -9,8 +9,10 @@
 #define DEFAULT_USE_TWO_LETTER_DAY false
 #define DEFAULT_DEBUG_MODE false
 #define DEFAULT_DEBUG_LOGGING false
+#define DEFAULT_DEBUG_HOURLY_CHIME_TEST true
 #define DEFAULT_SHOW_SECOND_DOT false
 #define DEFAULT_SHOW_HOUR_MINUTE_DOTS true
+#define DEFAULT_HOURLY_CHIME_VIBRATION false
 #define DEFAULT_STEP_GOAL 10000
 #define DEFAULT_TOP_LEFT_WIDGET WIDGET_DAY_DATE
 #define DEFAULT_TOP_RIGHT_WIDGET WIDGET_BATTERY_INDICATOR
@@ -32,8 +34,10 @@ static inline Settings get_default_settings() {
         .use_two_letter_day = DEFAULT_USE_TWO_LETTER_DAY,
         .debug_mode = DEFAULT_DEBUG_MODE,
         .debug_logging = DEFAULT_DEBUG_LOGGING,
+        .debug_hourly_chime_test = DEFAULT_DEBUG_HOURLY_CHIME_TEST,
         .show_second_dot = DEFAULT_SHOW_SECOND_DOT,
         .show_hour_minute_dots = DEFAULT_SHOW_HOUR_MINUTE_DOTS,
+        .hourly_chime_vibration = DEFAULT_HOURLY_CHIME_VIBRATION,
         .step_goal = DEFAULT_STEP_GOAL,
         .widget_config = get_default_widget_config()
     };

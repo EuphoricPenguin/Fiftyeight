@@ -132,6 +132,22 @@ module.exports = [
     ]
   },
   {
+    "type": "section",
+    "items": [
+      {
+        "type": "heading",
+        "defaultValue": "Vibration Settings"
+      },
+      {
+        "type": "toggle",
+        "messageKey": "HourlyChimeVibration",
+        "label": "Hourly Chime Vibration",
+        "defaultValue": false,
+        "description": "Enable vibration chime on the hour"
+      }
+    ]
+  },
+  {
     "type": "submit",
     "defaultValue": "Save Settings"
   }

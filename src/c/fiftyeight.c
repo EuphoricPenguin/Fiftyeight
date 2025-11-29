@@ -13,9 +13,11 @@ static GBitmap *s_day_sprites;
 // Debug mode variables
 static int s_debug_counter = 0;
 static AppTimer *s_debug_timer = NULL;
+static AppTimer *s_debug_chime_timer = NULL;
 
 // Forward declarations
 static void debug_timer_callback(void *data);
+static void debug_chime_timer_callback(void *data);
 
 // Persistent storage key
 #define SETTINGS_KEY 1
@@ -23,6 +25,7 @@ static void debug_timer_callback(void *data);
 // Message keys for Clay configuration
 #define MESSAGE_KEY_ShowSecondDot 10007
 #define MESSAGE_KEY_ShowHourMinuteDots 10008
+#define MESSAGE_KEY_HourlyChimeVibration 10009
 
 // External settings for widget system
 bool s_settings_use_24_hour_format = false;
@@ -228,6 +231,30 @@ static void prv_inbox_received_handler(DictionaryIterator *iter, void *context)
         s_settings.widget_config.top_right_widget = WIDGET_DAY_DATE;
     }
     
+    // Handle hourly chime vibration setting
+    Tuple *hourly_chime_vibration_t = dict_find(iter, MESSAGE_KEY_HourlyChimeVibration);
+    if (hourly_chime_vibration_t) {
+        if (s_settings.debug_logging) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "HourlyChimeVibration received - type: %d", hourly_chime_vibration_t->type);
+        }
+        bool new_hourly_chime_vibration;
+        if (hourly_chime_vibration_t->type == TUPLE_CSTRING) {
+            // Convert string to boolean
+            const char *hourly_chime_vibration_str = hourly_chime_vibration_t->value->cstring;
+            if (s_settings.debug_logging) {
+                APP_LOG(APP_LOG_LEVEL_INFO, "HourlyChimeVibration as string: '%s'", hourly_chime_vibration_str);
+            }
+            new_hourly_chime_vibration = (strcmp(hourly_chime_vibration_str, "true") == 0 || strcmp(hourly_chime_vibration_str, "1") == 0);
+        } else {
+            // Use integer value directly
+            new_hourly_chime_vibration = hourly_chime_vibration_t->value->int32 == 1;
+        }
+        if (s_settings.debug_logging) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "HourlyChimeVibration setting changed: %d -> %d", s_settings.hourly_chime_vibration, new_hourly_chime_vibration);
+        }
+        s_settings.hourly_chime_vibration = new_hourly_chime_vibration;
+    }
+    
     // Update widget configuration
     widgets_set_config(s_settings.widget_config);
     
@@ -261,10 +288,31 @@ static void debug_timer_callback(void *data) {
     }
 }
 
+// Debug chime timer callback - test hourly chime every 10 seconds
+static void debug_chime_timer_callback(void *data) {
+    if (s_settings.debug_hourly_chime_test) {
+        if (s_settings.debug_logging) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "Debug hourly chime test triggered");
+        }
+        vibes_enqueue_custom_pattern(s_hourly_vibe_pattern);
+        // Schedule next debug chime test (10 second interval)
+        s_debug_chime_timer = app_timer_register(10000, debug_chime_timer_callback, NULL);
+    } else {
+        s_debug_chime_timer = NULL;
+    }
+}
+
 // Rotating dot variables
 static int s_current_second = 0;
 static int s_current_minute = 0;
 static int s_current_hour = 0;
+
+// Hourly chime vibration pattern (short double pulse)
+static const uint32_t s_hourly_chime_pattern[] = { 100, 50, 100 };
+static VibePattern s_hourly_vibe_pattern = {
+    .durations = s_hourly_chime_pattern,
+    .num_segments = ARRAY_LENGTH(s_hourly_chime_pattern),
+};
 
 // Function to invert bitmap palette for dark mode
 static void invert_bitmap_palette(GBitmap *bitmap)
@@ -528,6 +576,14 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed)
     {
         s_current_hour = tick_time->tm_hour;
         layer_mark_dirty(s_canvas_layer);
+        
+        // Trigger hourly chime vibration if enabled
+        if (s_settings.hourly_chime_vibration) {
+            if (s_settings.debug_logging) {
+                APP_LOG(APP_LOG_LEVEL_INFO, "Hourly chime vibration triggered at hour: %d", s_current_hour);
+            }
+            vibes_enqueue_custom_pattern(s_hourly_vibe_pattern);
+        }
     }
 }
 
@@ -914,6 +970,7 @@ static void init()
     // FORCE debug settings to always use config.h defaults (not user-configurable)
     s_settings.debug_mode = DEFAULT_DEBUG_MODE;
     s_settings.debug_logging = DEFAULT_DEBUG_LOGGING;
+    s_settings.debug_hourly_chime_test = DEFAULT_DEBUG_HOURLY_CHIME_TEST;
     
     // Link settings to widget system
     s_settings_dark_mode = s_settings.dark_mode;
@@ -923,6 +980,11 @@ static void init()
     if (s_settings.debug_mode && !s_debug_timer) {
         s_debug_counter = 0;
         s_debug_timer = app_timer_register(500, debug_timer_callback, NULL);
+    }
+    
+    // Start debug chime timer if debug hourly chime test is enabled in config
+    if (s_settings.debug_hourly_chime_test && !s_debug_chime_timer) {
+        s_debug_chime_timer = app_timer_register(10000, debug_chime_timer_callback, NULL);
     }
     
     // Initialize widget system
