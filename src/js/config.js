@@ -4,7 +4,7 @@ module.exports = [
     "items": [
       {
         "type": "heading",
-        "defaultValue": "Widget Configuration"
+        "defaultValue": "Widget Config"
       },
       {
         "type": "select",
@@ -92,21 +92,21 @@ module.exports = [
     "items": [
       {
         "type": "heading",
-        "defaultValue": "Display Settings"
+        "defaultValue": "Display Config"
       },
       {
         "type": "toggle",
         "messageKey": "DarkMode",
         "label": "Dark Mode",
         "defaultValue": false,
-        "description": "Enable dark mode (white text on black background)"
+        "description": "Enable dark mode (inverted)"
       },
       {
         "type": "toggle",
         "messageKey": "Use24HourFormat",
         "label": "24-Hour Time Format",
         "defaultValue": false,
-        "description": "Use 24-hour format instead of 12-hour format"
+        "description": "Manual override for PebbleOS time format setting (which exists, btw)"
       },
       {
         "type": "toggle",
@@ -120,14 +120,14 @@ module.exports = [
         "messageKey": "ShowSecondDot",
         "label": "Show Second Dot",
         "defaultValue": true,
-        "description": "Show the second dot complication in the background"
+        "description": "Show the second dot in the background"
       },
       {
         "type": "toggle",
         "messageKey": "ShowHourMinuteDots",
         "label": "Show Hour and Minute Dots",
         "defaultValue": true,
-        "description": "Show the hour and minute dot complications in the background"
+        "description": "Show the hour and minute dots in the background"
       }
     ]
   },
